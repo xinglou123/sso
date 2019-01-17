@@ -1,54 +1,73 @@
 package sso
 
 import (
-	"github.com/xinglou123/pkg/db/redis"
+	"github.com/xinglou123/pkg/os/uuid"
+	"sync"
 )
 
-const (
-	//登录状态有效期  24*60*60s=86400
-	DEFAULT_EXPIRATION = 4
-)
+const DEFAULT_Expire = 24 * 60 * 60
 
-func CreateToken(redisKey string, keys map[string]interface{}) (string, error) {
-	tokenFirst, status := GetEStoken(redisKey)
-	if status != nil {
-		return "", status
-	}
-	tokenSecond, status := GetHStoken(tokenFirst, keys)
-	if status != nil {
-		return "", status
-	}
-	return tokenSecond, status
+type SSO struct {
 }
 
-func ParseToken(token string) (string, error) {
-	//解析第一层token
-	claimsHS, status := ParseHStoken(token)
-	if status != nil {
-		return "", status
-	}
-	//TODO 第二层token采用ES256算法，但XYD没解决
-	tokenES := claimsHS["id"].(string)
-	//解析第二层token
-	redisKey, status := ParseEStoken(tokenES)
-	if status != nil {
-		return "", status
-	}
-	return redisKey, nil
+var sso *SSO
+var once sync.Once
+
+func SSOShare() *SSO {
+	once.Do(func() {
+		sso = &SSO{}
+	})
+	return sso
 }
 
-func IsLogin(redisKey string) (bool, error) {
-	client := redis.DefaultClient()
-	defer client.Close()
-	return client.Exists(redisKey)
+//
+func (ss *SSO) GenSSOToken(data map[string]interface{}) (string, error) {
+	var claims SSOClaims
+	claims.SSOId = uuid.UUid()
+	claims.SSOExpired = DEFAULT_Expire
+	claims.SSOKeys = data
+
+	ssotoken, err := NewSSOToken().CreateToken(claims)
+	if err != nil {
+		return ssotoken, err
+	}
+	if ok, _ := ClaimsToRedis(claims); ok {
+		return ssotoken, nil
+	}
+	return "", err
 }
-func RefreshKey(redisKey string) (bool, error) {
-	client := redis.DefaultClient()
-	defer client.Close()
-	return client.SetEx(redisKey, "Raed Shomali", DEFAULT_EXPIRATION)
+
+//
+func (ss *SSO) PraseSSOToken(token string) (map[string]interface{}, error) {
+	if len(token) == 0 {
+		return nil, nil
+	}
+	sclaims, err := NewSSOToken().ParseToken(token)
+	if err != nil {
+		return nil, err
+	}
+	rclaims, err := ClaimsFromRedis(sclaims.SSOId)
+	if err != nil {
+		return nil, err
+	}
+	return rclaims.SSOKeys, nil
 }
-func RemoveKey(redisKey string) (int64, error) {
-	client := redis.DefaultClient()
-	defer client.Close()
-	return client.Del(redisKey)
+
+//
+func (ss *SSO) ExpireSSOToken(sid string, expired int64) (bool, error) {
+	if len(sid) == 0 {
+		return false, nil
+	}
+	if expired <= 0 {
+		expired = DEFAULT_Expire
+	}
+	return RefreshClaimsExpire(sid, expired)
+}
+
+//
+func (ss *SSO) RemoveSSOToken(sid string) (int64, error) {
+	if len(sid) == 0 {
+		return 0, nil
+	}
+	return RemoveClaims(sid)
 }
