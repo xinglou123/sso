@@ -38,19 +38,19 @@ func (ss *SSO) GenSSOToken(data map[string]interface{}) (string, error) {
 }
 
 //
-func (ss *SSO) PraseSSOToken(token string) (map[string]interface{}, error) {
+func (ss *SSO) PraseSSOToken(token string) (string, map[string]interface{}, error) {
 	if len(token) == 0 {
-		return nil, nil
+		return "", nil, nil
 	}
 	sclaims, err := NewSSOToken().ParseToken(token)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	rclaims, err := ClaimsFromRedis(sclaims.SSOId)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	return rclaims.SSOKeys, nil
+	return sclaims.SSOId, rclaims.SSOKeys, nil
 }
 
 //

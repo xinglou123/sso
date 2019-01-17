@@ -1,17 +1,18 @@
 package sso
 
 import (
+	"fmt"
 	"testing"
 )
 
 func TestSSO(t *testing.T) {
 
-	//data := map[string]interface{}{}
-	//data["id"] = 123
-	//data["name"] = "liuchengbin"
-	//
-	//token,_ := SSOShare().GenSSOToken(data)
-	//fmt.Println(token)
+	data := map[string]interface{}{}
+	data["id"] = 123
+	data["name"] = "liuchengbin"
+
+	token, _ := SSOShare().GenSSOToken(data)
+	fmt.Println(token)
 	//
 	//claimsb,_ := SSOShare().PraseSSOToken(token)
 	//
